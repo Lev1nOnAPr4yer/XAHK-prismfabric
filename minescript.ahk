@@ -21,6 +21,7 @@ targettitle := ""
 ModeText := ""
 id := 0
 RealHeld := {"Left": False, "Right": False} ; Mouse buttons currently held down with a direct click
+BackgroundHeld := {"Left": False, "Right": False} ; Mouse buttons currently held down with background clicks
 settingsFile := A_AppData "\Minescript\settings.ini" ; Where settings are saved between restarts
 IniRead, SwapButtons, %settingsFile%, Settings, SwapButtons, 0 ; When True the left and right mouse buttons are swapped in all modes except Custom
 
@@ -599,14 +600,13 @@ SetStatus(running)
 
 ;==================================================================================================
 ; Presses or releases a mouse button in the target window.
-; A direct click is needed in newer Minecraft versions that use SDL when in focus, and ControlClick is used when the window is in the background.
+; A direct click is needed in newer Minecraft versions that use SDL when in focus, and a background click message is used when the window is in the background.
 ; - `button` is either "Left" or "Right" for which mouse button to press or release
 ; - `state` is either "D" (down) or "U" (up)
 ; - `swap` set to False ignores the Swap Mouse Buttons option
-; - the `NA` option improves reliability when the window isn't active
 MouseButton(button, state, swap := True)
 {
-	global id, SwapButtons, RealHeld
+	global id, SwapButtons, RealHeld, BackgroundHeld
 
 	If (swap && SwapButtons)
 		button := (button = "Left" ? "Right" : "Left")
@@ -615,11 +615,27 @@ MouseButton(button, state, swap := True)
 	{
 		Click, % button " " (state = "D" ? "Down" : "Up")
 		RealHeld[button] := (state = "D")
+
+		; Minecraft releases all buttons when it gets focus, so nothing is held in the background anymore
+		BackgroundHeld := {"Left": False, "Right": False}
 	}
 	Else
 	{
 		ReleaseRealButtons()
-		ControlClick, , ahk_id %id%, , %button%, , NA%state%
+
+		; Post the click message directly instead of using ControlClick. Newer Minecraft versions (SDL)
+		; read the state of every mouse button from each message, but ControlClick only includes the
+		; button being clicked, so pressing one button would release the other (e.g. in Concrete mode).
+		BackgroundHeld[button] := (state = "D")
+		heldFlags := (BackgroundHeld["Left"] ? 0x1 : 0) | (BackgroundHeld["Right"] ? 0x2 : 0) ; MK_LBUTTON, MK_RBUTTON
+		msg := (button = "Left" ? 0x201 : 0x204) + (state = "D" ? 0 : 1) ; WM_LBUTTONDOWN/UP, WM_RBUTTONDOWN/UP
+
+		; Click in the center of the window
+		VarSetCapacity(rect, 16, 0)
+		DllCall("GetClientRect", "Ptr", id, "Ptr", &rect)
+		pos := ((NumGet(rect, 12, "Int") // 2) << 16) | (NumGet(rect, 8, "Int") // 2)
+
+		PostMessage, %msg%, %heldFlags%, %pos%, , ahk_id %id%
 	}
 }
 
