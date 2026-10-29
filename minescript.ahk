@@ -20,7 +20,8 @@ targetwinclass2 := "SDL_app" ; Class used by newer Minecraft versions, which use
 targettitle := ""
 ModeText := ""
 id := 0
-SwapButtons := False ; When True the left and right mouse buttons are swapped in all modes except Custom
+settingsFile := A_AppData "\Minescript\settings.ini" ; Where settings are saved between restarts
+IniRead, SwapButtons, %settingsFile%, Settings, SwapButtons, 0 ; When True the left and right mouse buttons are swapped in all modes except Custom
 
 ProgState := 0
 ; 0: Start			  - Program called for first time and setting default state. Hotkeys set, menu
@@ -68,6 +69,8 @@ Menu, OptionsMenu, Add, Generator, MenuGenerator
 Menu, OptionsMenu, Add, Custom, MenuCustom
 Menu, OptionsMenu, Add ; Adds sepearter line
 Menu, OptionsMenu, Add, Swap Mouse Buttons, MenuSwapButtons
+If (SwapButtons)
+	Menu, OptionsMenu, Check, Swap Mouse Buttons
 
 Menu, ClickerMenu, Add, File, :FileMenu
 Menu, ClickerMenu, Add, Help, :HelpMenu
@@ -316,6 +319,11 @@ MenuSwapButtons:
 
 	SwapButtons := !SwapButtons
 	Menu, OptionsMenu, ToggleCheck, Swap Mouse Buttons
+
+	; Save the setting so it's remembered after a restart
+	SplitPath, settingsFile, , settingsDir
+	FileCreateDir, %settingsDir%
+	IniWrite, %SwapButtons%, %settingsFile%, Settings, SwapButtons
 	Return
 }
 

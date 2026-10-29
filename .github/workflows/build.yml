@@ -1,0 +1,31 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download AutoHotkey v1 and the Ahk2Exe compiler
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.autohotkey.com/download/1.1/AutoHotkey_1.1.37.02.zip -OutFile ahk.zip
+          Expand-Archive ahk.zip -DestinationPath ahk
+
+      - name: Compile Minescript.exe
+        shell: pwsh
+        run: |
+          $ahkArgs = '/in "minescript.ahk" /out "Minescript.exe" /icon "assets\logo.ico" /bin "ahk\Compiler\Unicode 64-bit.bin" /compress 0 /silent verbose'
+          Start-Process -FilePath "ahk\Compiler\Ahk2Exe.exe" -ArgumentList $ahkArgs -Wait -NoNewWindow
+          if (-not (Test-Path Minescript.exe)) { throw "Compiling failed, Minescript.exe was not created" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Minescript
+          path: Minescript.exe
