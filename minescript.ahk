@@ -20,6 +20,7 @@ targetwinclass2 := "SDL_app" ; Class used by newer Minecraft versions, which use
 targettitle := ""
 ModeText := ""
 id := 0
+RealHeld := {"Left": False, "Right": False} ; Mouse buttons currently held down with a direct click
 settingsFile := A_AppData "\Minescript\settings.ini" ; Where settings are saved between restarts
 IniRead, SwapButtons, %settingsFile%, Settings, SwapButtons, 0 ; When True the left and right mouse buttons are swapped in all modes except Custom
 
@@ -51,15 +52,6 @@ Hotkey  !^w,    SelectWindow 	; Allows user to select window to control by hover
 
 ; Menu Setup
 Menu, Tray, icon, %A_Temp%/minescript_logo.ico
-Menu, Tray, Add ; Adds sepearter line
-Menu, Tray, Add, UnHide, ShowGUI
-
-Menu, FileMenu, Add, Open, MenuFileOpen
-Menu, FileMenu, Add, Hide, HideGUI
-Menu, FileMenu, Add, Exit, GUIClose
-
-Menu, HelpMenu, Add, About, MenuHandler
-
 Menu, OptionsMenu, Add, Fishing, MenuFishing
 Menu, OptionsMenu, Add, AFK Mob, MenuAFK
 Menu, OptionsMenu, Add, Concrete, MenuConcrete
@@ -72,9 +64,9 @@ Menu, OptionsMenu, Add, Swap Mouse Buttons, MenuSwapButtons
 If (SwapButtons)
 	Menu, OptionsMenu, Check, Swap Mouse Buttons
 
-Menu, ClickerMenu, Add, File, :FileMenu
-Menu, ClickerMenu, Add, Help, :HelpMenu
 Menu, ClickerMenu, Add, Options, :OptionsMenu
+Menu, ClickerMenu, Add, Delete Settings, MenuDeleteSettings
+Menu, ClickerMenu, Add, Exit, GUIClose
 
 ;===================================================================================================
 ; GUI-Default Welcome Screen
@@ -84,6 +76,9 @@ If (%ProgState% != 0)
 {
 	Return
 }
+
+; Release any directly held mouse buttons as soon as Minecraft loses focus (e.g. on alt tab)
+SetTimer, CheckFocus, 100
 
 Gui, Start:Show, Center W300 H300, %windowTitle%
 Gui, Start:Add, Pic, W280 H290 vpic_get, %A_Temp%/minescript_welcome.png
@@ -135,6 +130,7 @@ SelectWindow:
 	Gui, Main:Add, Text, X10 Y15 , Target Window Title :
 	Gui, Main:Add, Text, , Windows HWIND is :
 	Gui, Main:Add, Text, , CURRENT MODE:
+	Gui, Main:Add, Text, , STATUS:
 	Gui, Main:Add, Text, W370 R3 vReminderText, To change mode of operation please select from Option menu.
 	Gui, Main:Add, Text, ,
 	Gui, Add, Slider, vMySlider gOnSliderChange W375 ToolTip Range0-1000 TickInterval100, MySlider
@@ -143,6 +139,7 @@ SelectWindow:
 	Gui, Main:Add, Text, X150 Y15 vtargettitleText, %targettitle%
 	Gui, Main:Add, Text, vIDText, %id%
 	Gui, Main:Add, Text, vMode w100, None
+	Gui, Main:Add, Text, vStatus w100 cRed, Stopped
 	; Gui, Main:Add, Text, vMode w100 X150 Y15, None
 
 	; Custom mode controls, placed where the slider is
@@ -155,7 +152,7 @@ SelectWindow:
 
 	GuiControl, Main:Hide, MySlider
 	ShowCustomControls(False)
-	Gui, Main: Show, H400 H210
+	Gui, Main: Show, H230
 
 	; Clear mouse clicks to target by sending UP to the right and left mouse buttons
 	MouseButton("Right", "U")
@@ -166,31 +163,25 @@ SelectWindow:
 }
 
 ;===================================================================================================
-;Menu Functions
-; Place holder - will allow users to load saved values
-;===================================================================================================
-MenuFileOpen:
+; Deletes the settings folder in AppData and the temporary files Minescript creates
+MenuDeleteSettings:
 {
-	;ModeText := JumpFlying
-	;GuiControl,,Mode, %ModeText%
-	Return
-}
-;===================================================================================================
-ShowGUI:
-{
-	Gui, Main:Show, H400 H210
-	Return
-}
-;===================================================================================================
-HideGUI:
-{
-	Gui, Main:Hide
-	Return
-}
-;===================================================================================================
-MenuHandler:
-{
-	; TODO: About menu action here
+	SplitPath, settingsFile, , settingsDir
+	MsgBox, 0x24, Delete Settings, This will delete all files Minescript has saved on this computer:`n`n%settingsDir%`n%A_Temp%\minescript_welcome.png`n%A_Temp%\minescript_logo.ico`n`nThe Swap Mouse Buttons setting will be reset. Continue?
+	IfMsgBox, No
+		Return
+
+	; Stop any running mode and reset the settings to their defaults
+	BreakLoop := 1
+	MouseButton("Right", "U")
+	MouseButton("Left", "U")
+	SwapButtons := False
+	Menu, OptionsMenu, Uncheck, Swap Mouse Buttons
+
+	FileRemoveDir, %settingsDir%, 1
+	FileDelete, %A_Temp%\minescript_welcome.png
+	FileDelete, %A_Temp%\minescript_logo.ico
+	MsgBox, 0x40, Delete Settings, The settings have been deleted.
 	Return
 }
 
@@ -345,6 +336,7 @@ JumpFly:
 		Return
 	}
 
+	SetStatus(True)
 	Sleep 500
 	Send {Space down}
 	Sleep 75
@@ -357,6 +349,7 @@ JumpFly:
 	MouseButton("Right", "D")
 	Sleep 100
 	MouseButton("Right", "U")
+	SetStatus(False)
 	Return
 }
 
@@ -370,6 +363,7 @@ Concrete:
 	}
 
 	BreakLoop := 0
+	SetStatus(True)
 
 	While (BreakLoop = 0)
 	{
@@ -387,6 +381,7 @@ Concrete:
 	MouseButton("Left", "U")
 	Sleep 100
 	MouseButton("Right", "U")
+	SetStatus(False)
 	Return
 }
 
@@ -400,6 +395,7 @@ Fishing:
 	}
 
 	BreakLoop := 0
+	SetStatus(True)
 	Loop
 	{
 		If (BreakLoop = 1)
@@ -413,6 +409,7 @@ Fishing:
 		Sleep 100
 		MouseButton("Right", "U")
 	}
+	SetStatus(False)
 	Return
 }
 
@@ -426,6 +423,7 @@ MobGrind:
 	}
 
 	BreakLoop := 0
+	SetStatus(True)
 	Delay := 0
 	Sleep 500
 	While (BreakLoop = 0)
@@ -437,6 +435,7 @@ MobGrind:
 		{
 			; On Ctrl+Alt+S detected forces a RIGHT mouse key UP
 			MouseButton("Right", "U")
+			SetStatus(False)
 			Return
 		}
 
@@ -464,6 +463,7 @@ MobGrind:
 	; Force mouse keys UP at exit
 	MouseButton("Right", "U")
 	MouseButton("Left", "U")
+	SetStatus(False)
 	Return
 }
 
@@ -475,6 +475,7 @@ MobKill:
 	}
 
 	BreakLoop := 0
+	SetStatus(True)
 	Delay := 0
 	Sleep 500
 	While (BreakLoop = 0)
@@ -501,6 +502,7 @@ MobKill:
 	Sleep 100
 	; Force mouse keys UP at exit
 	MouseButton("Left", "U")
+	SetStatus(False)
 	Return
 }
 
@@ -514,6 +516,7 @@ Generator:
 	}
 
 	BreakLoop := 0
+	SetStatus(True)
 	While (BreakLoop = 0)
 	{
 		MouseButton("Left", "D")
@@ -527,6 +530,7 @@ Generator:
 
 	MouseButton("Left", "U")
 	Sleep 100
+	SetStatus(False)
 	Return
 }
 
@@ -548,6 +552,7 @@ Custom:
 	pressTime := Min(interval // 2, 50)
 
 	BreakLoop := 0
+	SetStatus(True)
 	While (BreakLoop = 0)
 	{
 		MouseButton(CustomButton, "D", False)
@@ -563,6 +568,7 @@ Custom:
 	}
 
 	MouseButton(CustomButton, "U", False)
+	SetStatus(False)
 	Return
 }
 
@@ -576,8 +582,19 @@ Stop:
 	BreakLoop := 1
 	MouseButton("Right", "U")
 	MouseButton("Left", "U")
+	SetStatus(False)
 	Sleep 500
 	Return
+}
+
+;==================================================================================================
+; Shows whether a mode is currently running in the GUI
+SetStatus(running)
+{
+	global Status
+
+	GuiControl, % "Main:+c" (running ? "Green" : "Red"), Status
+	GuiControl, Main:Text, Status, % running ? "Running" : "Stopped"
 }
 
 ;==================================================================================================
@@ -589,18 +606,48 @@ Stop:
 ; - the `NA` option improves reliability when the window isn't active
 MouseButton(button, state, swap := True)
 {
-	global id, SwapButtons
+	global id, SwapButtons, RealHeld
 
 	If (swap && SwapButtons)
 		button := (button = "Left" ? "Right" : "Left")
 
 	If (WinActive("ahk_id " id))
+	{
 		Click, % button " " (state = "D" ? "Down" : "Up")
+		RealHeld[button] := (state = "D")
+	}
 	Else
+	{
+		ReleaseRealButtons()
 		ControlClick, , ahk_id %id%, , %button%, , NA%state%
+	}
+}
+
+; Releases any mouse buttons held down with a direct click. Without this they would stay held down
+; in Windows after alt tabbing, interfering with both other programs and the background clicks.
+ReleaseRealButtons()
+{
+	global RealHeld
+
+	For button, held in RealHeld
+	{
+		If (held)
+		{
+			Click, %button% Up
+			RealHeld[button] := False
+		}
+	}
+}
+
+CheckFocus:
+{
+	If (id && !WinActive("ahk_id " id))
+		ReleaseRealButtons()
+	Return
 }
 
 ESC:
 GuiClose:
 GuiEscape:
+ReleaseRealButtons()
 ExitApp
