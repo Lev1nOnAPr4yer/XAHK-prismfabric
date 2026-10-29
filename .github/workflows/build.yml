@@ -15,7 +15,10 @@ jobs:
       - name: Download AutoHotkey v1 and the Ahk2Exe compiler
         shell: pwsh
         run: |
-          Invoke-WebRequest https://www.autohotkey.com/download/1.1/AutoHotkey_1.1.37.02.zip -OutFile ahk.zip
+          # Downloaded from AutoHotkey's GitHub releases, as autohotkey.com blocks automated downloads
+          Invoke-WebRequest https://github.com/AutoHotkey/AutoHotkey/releases/download/v1.1.37.02/AutoHotkey_1.1.37.02.zip -OutFile ahk.zip
+          $hash = (Get-FileHash ahk.zip -Algorithm SHA256).Hash
+          if ($hash -ne "6F3663F7CDD25063C8C8728F5D9B07813CED8780522FD1F124BA539E2854215F") { throw "Unexpected AutoHotkey zip hash: $hash" }
           Expand-Archive ahk.zip -DestinationPath ahk
 
       - name: Compile Minescript.exe
