@@ -20,6 +20,7 @@ targetwinclass2 := "SDL_app" ; Class used by newer Minecraft versions, which use
 targettitle := ""
 ModeText := ""
 id := 0
+SwapButtons := False ; When True the left and right mouse buttons are swapped in all modes except Custom
 
 ProgState := 0
 ; 0: Start			  - Program called for first time and setting default state. Hotkeys set, menu
@@ -32,6 +33,7 @@ ProgState := 0
 ; 4: MobGrindMode	  - Enter Mob Grinder Mode
 ; 5: KillingMode	  - Enter Killing Mode
 ; 6: GeneratorMode	  - Enter Stone/Cobblestone Generator Mode
+; 7: CustomMode		  - Enter Custom Mode, clicking a chosen mouse button at a chosen interval
 
 
 ; Hotkeys
@@ -41,6 +43,7 @@ Hotkey  !^c,	Concrete		; Pressing ctrl + alt + c will start concrete farming
 Hotkey  !^m,	MobGrind		; Pressing ctrl + alt + m will start mob grinding
 Hotkey	!^k,	MobKill			; Pressing ctrl + alt + k will start mob killing
 Hotkey	!^g,	Generator		; Pressing ctrl + alt + g will start generator mode
+Hotkey	!^x,	Custom			; Pressing ctrl + alt + x will start custom mode
 Hotkey	!^s,	Stop			; Pressing ctrl + alt + s will stop it
 Hotkey  !^w,    SelectWindow 	; Allows user to select window to control by hovering mouse over it and pressing ctrl + alt + w
 
@@ -62,6 +65,9 @@ Menu, OptionsMenu, Add, Concrete, MenuConcrete
 Menu, OptionsMenu, Add, JumpFlying, MenuJumpFly
 Menu, OptionsMenu, Add, MobKill, MenuMobKill
 Menu, OptionsMenu, Add, Generator, MenuGenerator
+Menu, OptionsMenu, Add, Custom, MenuCustom
+Menu, OptionsMenu, Add ; Adds sepearter line
+Menu, OptionsMenu, Add, Swap Mouse Buttons, MenuSwapButtons
 
 Menu, ClickerMenu, Add, File, :FileMenu
 Menu, ClickerMenu, Add, Help, :HelpMenu
@@ -136,7 +142,16 @@ SelectWindow:
 	Gui, Main:Add, Text, vMode w100, None
 	; Gui, Main:Add, Text, vMode w100 X150 Y15, None
 
+	; Custom mode controls, placed where the slider is
+	GuiControlGet, SliderPos, Main:Pos, MySlider
+	Gui, Main:Add, Text, X10 Y%SliderPosY% vCustomButtonText, Button:
+	Gui, Main:Add, DropDownList, X60 yp-3 W70 vCustomButton Choose1, Left|Right
+	Gui, Main:Add, Text, X150 yp+3 vCustomIntervalText, Interval (ms):
+	Gui, Main:Add, Edit, X230 yp-3 W70 Number vCustomInterval, 500
+	Gui, Main:Add, UpDown, vCustomIntervalUpDown Range20-60000 0x80, 500
+
 	GuiControl, Main:Hide, MySlider
+	ShowCustomControls(False)
 	Gui, Main: Show, H400 H210
 
 	; Clear mouse clicks to target by sending UP to the right and left mouse buttons
@@ -192,6 +207,7 @@ MenuFishing:
 
 	; Uses `n to insert line feeds in multi line text box.
 	GuiControl, Main:Text, Mode, Fishing
+	ShowCustomControls(False)
 	GuiControl, Main:Show, MySlider
 	GuiControl, Main:Text, ReminderText, CURRENT AVALIBLE OPTIONS:`no- Pressing ctrl + alt + f will start fishing`no- Pressing ctrl + alt + s will stop any AutoKey function above
 
@@ -208,6 +224,7 @@ MenuAFK:
 
 	; Uses `n to insert line feeds in multi line text box.
 	GuiControl, Main:Text, Mode, AFK Mob
+	ShowCustomControls(False)
 	GuiControl, Main:Hide, MySlider
 	GuiControl, Main:Text, ReminderText, CURRENT AVALIBLE OPTIONS:`no- Pressing ctrl + alt + m will start Mob Grinding`no- Pressing ctrl + alt + s will stop any AutoKey function above
 
@@ -224,6 +241,7 @@ MenuConcrete:
 
 	; Uses `n to insert line feeds in multi line text box.
 	GuiControl, Main:Text, Mode, Concrete
+	ShowCustomControls(False)
 	GuiControl, Main:Hide, MySlider
 	GuiControl, Main:Text, ReminderText, CURRENT AVALIBLE OPTIONS:`no- Pressing ctrl + alt + c will start concrete farming`no- Pressing ctrl + alt + s will stop any AutoKey function above
 
@@ -240,6 +258,7 @@ MenuJumpFly:
 
 	; Uses `n to insert line feeds in multi line text box.
 	GuiControl, Main:Text, Mode, JumpFly
+	ShowCustomControls(False)
 	GuiControl, Main:Hide, MySlider
 	GuiControl, Main:Text, ReminderText, CURRENT AVALIBLE OPTIONS:`no- Pressing ctrl + alt + e will double hit space and fire a rocket in main hand
 
@@ -252,6 +271,7 @@ MenuMobKill:
 	BreakLoop := 1
 
 	GuiControl, Main:Text, Mode, MobKill
+	ShowCustomControls(False)
 	GuiControl, Main:Hide, MySlider
 	GuiControl, Main:Text, ReminderText, CURRENT AVALIBLE OPTIONS:`no- Pressing ctrl + alt + k will start killing mobs`no- Pressing ctrl + alt + s will stop any AutoKey function above
 
@@ -264,11 +284,48 @@ MenuGenerator:
 	BreakLoop := 1
 
 	GuiControl, Main:Text, Mode, Generator
+	ShowCustomControls(False)
 	GuiControl, Main:Hide, MySlider
 	GuiControl, Main:Text, ReminderText, CURRENT AVALIBLE OPTIONS:`no- Pressing ctrl + alt + g will start generator mining`no- Pressing ctrl + alt + s will stop any AutoKey function above
 
 	ProgState := 6
 	Return
+}
+
+MenuCustom:
+{
+	BreakLoop := 1
+
+	GuiControl, Main:Text, Mode, Custom
+	GuiControl, Main:Hide, MySlider
+	ShowCustomControls(True)
+	GuiControl, Main:Text, ReminderText, CURRENT AVALIBLE OPTIONS:`no- Pressing ctrl + alt + x will start clicking the selected button`no- Pressing ctrl + alt + s will stop any AutoKey function above
+
+	ProgState := 7
+	Return
+}
+
+;===================================================================================================
+; Toggles swapping the left and right mouse buttons, for players who have use/place and attack
+; swapped in their Minecraft controls. Stops any running mode so no button is left held down.
+MenuSwapButtons:
+{
+	BreakLoop := 1
+	MouseButton("Right", "U")
+	MouseButton("Left", "U")
+
+	SwapButtons := !SwapButtons
+	Menu, OptionsMenu, ToggleCheck, Swap Mouse Buttons
+	Return
+}
+
+; Shows or hides the Custom mode controls
+ShowCustomControls(show)
+{
+	global CustomButtonText, CustomButton, CustomIntervalText, CustomInterval, CustomIntervalUpDown
+
+	For _, control in ["CustomButtonText", "CustomButton", "CustomIntervalText", "CustomInterval", "CustomIntervalUpDown"]
+		GuiControl, % "Main:" (show ? "Show" : "Hide"), %control%
 }
 ;===================================================================================================
 ; Called when Ctrl+Alt+E is pressed.
@@ -465,6 +522,42 @@ Generator:
 	Return
 }
 
+;===================================================================================================
+; Called when Ctrl+Alt+X is pressed. Repeatedly clicks the selected button at the selected interval.
+; The selected button is the actual mouse button, so Swap Mouse Buttons doesn't apply here.
+Custom:
+{
+	If (ProgState != 7)
+	{
+		Return
+	}
+
+	Gui, Main:Submit, NoHide
+	interval := CustomInterval
+	If interval is not integer
+		interval := 500
+	interval := Max(interval, 20)
+	pressTime := Min(interval // 2, 50)
+
+	BreakLoop := 0
+	While (BreakLoop = 0)
+	{
+		MouseButton(CustomButton, "D", False)
+		Sleep %pressTime%
+		MouseButton(CustomButton, "U", False)
+
+		; Wait in small steps so Stop is responded to quickly even with long intervals
+		waitUntil := A_TickCount + interval - pressTime
+		While (BreakLoop = 0 && A_TickCount < waitUntil)
+		{
+			Sleep 10
+		}
+	}
+
+	MouseButton(CustomButton, "U", False)
+	Return
+}
+
 ;==================================================================================================
 ; Called when Ctrl+Alt+S is pressed at ANYTIME
 ; By setting the globle value of 'BreakLoop' to 1 this causes any running mode to exit under its own
@@ -484,10 +577,14 @@ Stop:
 ; A direct click is needed in newer Minecraft versions that use SDL when in focus, and ControlClick is used when the window is in the background.
 ; - `button` is either "Left" or "Right" for which mouse button to press or release
 ; - `state` is either "D" (down) or "U" (up)
+; - `swap` set to False ignores the Swap Mouse Buttons option
 ; - the `NA` option improves reliability when the window isn't active
-MouseButton(button, state)
+MouseButton(button, state, swap := True)
 {
-	global id
+	global id, SwapButtons
+
+	If (swap && SwapButtons)
+		button := (button = "Left" ? "Right" : "Left")
 
 	If (WinActive("ahk_id " id))
 		Click, % button " " (state = "D" ? "Down" : "Up")
